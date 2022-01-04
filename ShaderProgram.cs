@@ -18,6 +18,10 @@ namespace Raymarcher
             GL.UseProgram(id);
         }
 
+        public int GetUniform(string name){
+            return GL.GetUniformLocation(id, name);
+        }
+
         public ShaderProgram(string name, params Shader[] shaders)
         {
             this.name = name;

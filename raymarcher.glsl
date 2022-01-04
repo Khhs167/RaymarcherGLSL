@@ -9,17 +9,71 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 // GL.BindImageTexture
 layout(binding = 0, rgba32f) restrict uniform image2D ImgResult;
 
+const float nearPlane = 0.1;
+const float farPlane = 1000;
+const float collisionRange = 0.1;
+uniform vec3 cameraPosition = vec3(0, 0, 0);
+uniform float cameraRotation = 0;
+
+struct Sphere{
+  vec3 pos;
+  vec3 color;
+  float size;
+};
+
+const Sphere spheres[1] = { { vec3(0, 0, 10), vec3(1, 0, 0), 1 }};
+const int sphereCount = 1;
+
 void main()
 {
-    // Width and height of our image in Pixels
-    ivec2 imgResultSize = imageSize(ImgResult);
+  // Width and height of our image in Pixels
+  ivec2 size = imageSize(ImgResult);
+  
+  // gl_GlobalInvocationID is the current thread we are in
+  // since we have a local size of 1 and we dispatch (Width, Height, 1)
+  // this will be in the range of [0; Width][0, Height][0]
+  ivec2 imgCoord = ivec2(gl_GlobalInvocationID.xy);
 
-    // gl_GlobalInvocationID is the current thread we are in
-    // since we have a local size of 1 and we dispatch (Width, Height, 1)
-    // this will be in the range of [0; Width][0, Height][0]
-    ivec2 imgCoord = ivec2(gl_GlobalInvocationID.xy);
+  vec2 uv = imgCoord / vec2(size); // range [0; 1]
+  vec3 color = vec3(-1, -1, -1);
 
-    vec2 color = imgCoord / vec2(imgResultSize); // range [0; 1]
+  float ratio = size.y / size.x;
+  float d = 0;
+  
+  vec2 screenCoord = uv - vec2(0.5, 0.5);
 
-    imageStore(ImgResult, imgCoord, vec4(color, 0.0, 1.0));
+  vec3 cameraForward = vec3(sin(cameraRotation), 0, cos(cameraRotation));
+  vec3 cameraRight = vec3(cos(cameraRotation), 0, sin(cameraRotation));
+  vec3 cameraUp = vec3(0, 1, 0);
+  vec3 worldCoord = (cameraForward * nearPlane) + (cameraUp * screenCoord.y) + (cameraRight * screenCoord.x) + cameraPosition;
+
+  vec3 direction = normalize(worldCoord - cameraPosition);
+
+  while(d <= farPlane){
+
+    if(color.x != -1){
+      break;
+    }
+
+    vec3 pos = worldCoord + (direction * d);
+    float lowestDist = farPlane * 100;
+      for(int i = 0; i < sphereCount; i++){
+        Sphere sphere = spheres[i];
+        lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
+        if(lowestDist < collisionRange){
+          color = sphere.color;
+          break;
+      }
+      
+    }
+    d += lowestDist;
+  }
+
+  if(color.x == -1){
+    color = vec3(0.2, 0.2, 1);
+  }
+
+  color = direction;
+
+  imageStore(ImgResult, imgCoord, vec4(color, 1.0));
 }

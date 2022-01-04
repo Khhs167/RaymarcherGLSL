@@ -1,9 +1,12 @@
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
 using System.Runtime.InteropServices;
+using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 
 namespace Raymarcher{
     public class Window : GameWindow
@@ -24,7 +27,7 @@ namespace Raymarcher{
 
         protected override void OnLoad()
         {
-            GL.Enable(EnableCap.DebugOutput);
+            //GL.Enable(EnableCap.DebugOutput);
             GL.DebugMessageCallback(MessageCallback, IntPtr.Zero);
 
             raymarcherCompute = new Shader("cs_raymarcher", File.ReadAllText("raymarcher.glsl"), ShaderType.ComputeShader);
@@ -42,6 +45,8 @@ namespace Raymarcher{
             GL.CreateVertexArrays(1, out emptyVAO);
             GL.BindVertexArray(emptyVAO);
             
+            cameraPositionUniform = raymarcherProgram.GetUniform("cameraPosition");
+            cameraRotationUniform = raymarcherProgram.GetUniform("cameraRotation");
 
             base.OnLoad();
         }
@@ -54,15 +59,52 @@ namespace Raymarcher{
                  IntPtr message,
                  IntPtr userParam )
 {
-  Console.WriteLine($"GL CALLBACK: {(type == DebugType.DebugTypeError ? "**GL ERROR**" : "")} type = {type.ToString()}, severity = {severity.ToString()}, message = {Marshal.PtrToStringAuto(message)}");
+    if(severity == DebugSeverity.DebugSeverityHigh){
+        Console.Error.WriteLine($"GL ERROR type = {type.ToString()}, severity = {severity.ToString()}, message = {Marshal.PtrToStringAuto(message)}");
+    } else{
+        Console.WriteLine($"GL CALLBACK: {(type == DebugType.DebugTypeError ? "**GL ERROR**" : "")} type = {type.ToString()}, severity = {severity.ToString()}, message = {Marshal.PtrToStringAuto(message)}");
+    }
 }
+
 
         void checkGLError()
         {
-            ErrorCode err;
+            ErrorCode err = ErrorCode.NoError;
             while((err = GL.GetError()) != ErrorCode.NoError){
                 Console.WriteLine(err);
             }  
+        }
+
+        Vector3 cameraPosition = Vector3.Zero;
+        int cameraPositionUniform = -1;
+
+        float cameraRotation = 0;
+        int cameraRotationUniform = -1;
+
+        protected override void OnUpdateFrame(FrameEventArgs args)
+        {
+            Title = $"Jimmys raymarcher 2.0 - {1f / (float)args.Time} FPS";
+
+            if(IsKeyDown(Keys.W)){
+                cameraPosition += (float)args.Time * new Vector3(MathF.Sin(cameraRotation), 0, MathF.Cos(cameraRotation));
+            }
+            if(IsKeyDown(Keys.S)){
+                cameraPosition -= (float)args.Time * new Vector3(MathF.Sin(cameraRotation), 0, MathF.Cos(cameraRotation));
+            }
+            if(IsKeyDown(Keys.D)){
+                cameraPosition += (float)args.Time * new Vector3(MathF.Cos(cameraRotation), 0, MathF.Sin(cameraRotation));
+            }
+            if(IsKeyDown(Keys.A)){
+                cameraPosition -= (float)args.Time * new Vector3(MathF.Cos(cameraRotation), 0, MathF.Sin(cameraRotation));;
+            }
+            if(IsKeyDown(Keys.Right)){
+                cameraRotation += (float)args.Time;
+            }
+            if(IsKeyDown(Keys.Left)){
+                cameraRotation -= (float)args.Time;
+            }
+
+            base.OnUpdateFrame(args);
         }
 
         protected override void OnRenderFrame(FrameEventArgs args)
@@ -71,9 +113,11 @@ namespace Raymarcher{
             
             raymarcherProgram.Use();
             GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
+            GL.Uniform3(cameraPositionUniform, cameraPosition);
+            GL.Uniform1(cameraRotationUniform, cameraRotation);
             GL.DispatchCompute(RENDER_WIDTH, RENDER_HEIGHT, 1);
             //checkGLError();
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+            GL.Finish();
 
             GL.BindTextureUnit(0, computeTexture);
             GL.UseProgram(finalProgram.id);
