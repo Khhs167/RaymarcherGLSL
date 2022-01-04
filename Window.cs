@@ -3,6 +3,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using System;
+using System.Runtime.InteropServices;
 
 namespace Raymarcher{
     public class Window : GameWindow
@@ -23,6 +24,9 @@ namespace Raymarcher{
 
         protected override void OnLoad()
         {
+            GL.Enable(EnableCap.DebugOutput);
+            GL.DebugMessageCallback(MessageCallback, IntPtr.Zero);
+
             raymarcherCompute = new Shader("cs_raymarcher", File.ReadAllText("raymarcher.glsl"), ShaderType.ComputeShader);
             raymarcherProgram = new ShaderProgram("p_raymarcher", raymarcherCompute);
 
@@ -32,8 +36,8 @@ namespace Raymarcher{
             GL.TextureParameter(computeTexture, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             GL.TextureParameter(computeTexture, TextureParameterName.TextureMagFilter, (int)TextureMinFilter.Nearest);
             GL.BindTexture(TextureTarget.Texture2D, computeTexture);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, 1, 1, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
-            GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32f);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, RENDER_WIDTH, RENDER_HEIGHT, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
 
             GL.CreateVertexArrays(1, out emptyVAO);
             GL.BindVertexArray(emptyVAO);
@@ -42,13 +46,33 @@ namespace Raymarcher{
             base.OnLoad();
         }
 
+        void MessageCallback( DebugSource source,
+                 DebugType type,
+                 int id,
+                 DebugSeverity severity,
+                 int length,
+                 IntPtr message,
+                 IntPtr userParam )
+{
+  Console.WriteLine($"GL CALLBACK: {(type == DebugType.DebugTypeError ? "**GL ERROR**" : "")} type = {type.ToString()}, severity = {severity.ToString()}, message = {Marshal.PtrToStringAuto(message)}");
+}
+
+        void checkGLError()
+        {
+            ErrorCode err;
+            while((err = GL.GetError()) != ErrorCode.NoError){
+                Console.WriteLine(err);
+            }  
+        }
+
         protected override void OnRenderFrame(FrameEventArgs args)
         {
             GL.Clear(ClearBufferMask.ColorBufferBit);
-          
-            GL.UseProgram(raymarcherCompute.id);
+            
+            raymarcherProgram.Use();
             GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
-            GL.DispatchCompute(1, 1, 1);
+            GL.DispatchCompute(RENDER_WIDTH, RENDER_HEIGHT, 1);
+            //checkGLError();
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
 
             GL.BindTextureUnit(0, computeTexture);

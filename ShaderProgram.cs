@@ -14,6 +14,10 @@ namespace Raymarcher
 
         public List<Shader> shaders;
 
+        public void Use(){
+            GL.UseProgram(id);
+        }
+
         public ShaderProgram(string name, params Shader[] shaders)
         {
             this.name = name;
