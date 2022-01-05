@@ -1,0 +1,188 @@
+#version 430 core
+#define M_PI 3.1415926535897932384626433832795
+#define M_TWOPI 6.28318530717958647692
+// Number of threads in each workgroup
+// the number of workroups dispatched is specified by us with a call to
+// GL.DispatchCompute(x, x, x);
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+// Binding is unit we will bind out texture to with
+// GL.BindImageTexture
+layout(binding = 0, rgba32f) restrict uniform image2D ImgResult;
+
+const float nearPlane = 0.5;
+const float farPlane = 100;
+const float lightLength = 1000;
+const float collisionRange = 0.1;
+
+const float shadowOffset = 0.0000000001;
+
+uniform vec3 cameraPosition = vec3(0, 0, 0);
+uniform mat4 cameraRotation;
+
+uniform int iFrame;
+
+const vec3 fogColor = vec3(0.3, 0.3, 1.0);
+const vec3 bgColor = vec3(0.2, 0.2, 1.0);
+
+const vec3 sunColor = vec3(1, 1, 1);
+const float sunStrength = 0.5;
+
+
+struct Sphere{
+  vec3 pos;
+  vec3 color;
+  float size;
+  float emission;
+};
+
+struct Illumination{
+  float strength;
+  vec3 color;
+};
+
+struct RayResult{
+  bool hit;
+  Sphere sphere;
+  vec3 position;
+};
+
+const Sphere spheres[4] = { 
+  { vec3(2, 0, 0), vec3(1, 0, 0), 0.5, 0 },
+  { vec3(2, 0, 2), vec3(0, 1, 0), 0.5, 0 },
+  { vec3(2, 2, 0), vec3(0, 0, 1), 0.5, 0 },
+  { vec3(2, 2, 2), vec3(1, 1, 0), 0.5, 0 }
+};
+const int sphereCount = 2;
+const vec3 sunDir = normalize(vec3(1, 1, 1));
+uint rngState = -1;
+
+// Vector magic stuff thanks to a legend i found online :)
+uint wang_hash(inout uint seed)
+{
+    seed = uint(seed ^ uint(61)) ^ uint(seed >> uint(16));
+    seed *= uint(9);
+    seed = seed ^ (seed >> 4);
+    seed *= uint(0x27d4eb2d);
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+ 
+float RandomFloat01(inout uint state)
+{
+    return float(wang_hash(state)) / 4294967296.0;
+}
+ 
+vec3 RandomUnitVector(inout uint state)
+{
+    float z = RandomFloat01(state) * 2.0 - 1.0;
+    float a = RandomFloat01(state) * M_TWOPI;
+    float r = sqrt(1.0f - z * z);
+    float x = r * cos(a);
+    float y = r * sin(a);
+    return vec3(x, y, z);
+}
+
+RayResult IntersectRay(vec3 position, vec3 direction, float maxdist){
+  float d = 0;
+  while(d <= maxdist){
+    vec3 pos = position + (direction * d);
+    float lowestDist = maxdist * 100;
+    for(int i = 0; i < sphereCount; i++){
+      Sphere sphere = spheres[i];
+      lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
+      if(lowestDist < collisionRange){
+        return RayResult(true, sphere, pos);
+      }
+    }
+    d += lowestDist;
+  }
+  return RayResult(false, spheres[0], position);
+}
+
+Illumination PathtracePoint(vec3 fragment, Sphere sphere){
+  float maxStrength = 0.00000000000000000000000000000000001;
+  vec3 color = vec3(0);
+  vec3 normal = normalize(fragment - sphere.pos);
+  for(int i = 0; i <= 16; i++){
+    vec3 direction = normalize(mix(normal, RandomUnitVector(rngState), 0.5));
+    RayResult result = IntersectRay(fragment + (normal * (collisionRange + shadowOffset)), direction, lightLength);
+    if(!result.hit){
+      if(dot(direction, vec3(0, 1, 0)) > 0){
+        color = mix(color, sunColor, sunStrength / maxStrength);
+        maxStrength = max(maxStrength, sunStrength);
+      }
+    } else{
+      //return Illumination(100, vec3(1, 1, 1));
+      color = mix(color, result.sphere.color, result.sphere.emission / maxStrength);
+
+      maxStrength = max(maxStrength, result.sphere.emission);
+      
+    }
+  }
+  return Illumination(maxStrength, color);
+}
+
+Illumination ShadePoint(vec3 fragment, Sphere sphere){
+  vec3 sphereNormal = normalize(sphere.pos - fragment);
+  RayResult r = IntersectRay(fragment - sphereNormal * (collisionRange + shadowOffset), -sunDir, lightLength);
+  if(r.hit){
+      return Illumination(0, vec3(0, 0, 0));
+  }
+  return Illumination(1.1, bgColor);
+}
+void main()
+{
+  // Width and height of our image in Pixels
+  ivec2 size = imageSize(ImgResult);
+  
+  // gl_GlobalInvocationID is the current thread we are in
+  // since we have a local size of 1 and we dispatch (Width, Height, 1)
+  // this will be in the range of [0; Width][0, Height][0]
+  ivec2 imgCoord = ivec2(gl_GlobalInvocationID.xy);
+
+  rngState = uint(uint(imgCoord.x) * uint(1973) + uint(imgCoord.y) * uint(9277) + uint(iFrame) * uint(26699)) | uint(1);
+
+  vec2 uv = imgCoord / vec2(size); // range [0; 1]
+  vec3 color = vec3(-1, -1, -1);
+
+  float ratio = float(size.y) / float(size.x);
+  float d = 0;
+  
+  vec2 screenCoord = uv - vec2(0.5, 0.5);
+  screenCoord.x /= ratio;
+
+  vec3 cameraForward = vec3(0, 0, 1);
+  vec3 cameraRight = vec3(1, 0, 0);
+  vec3 cameraUp = vec3(0, 1, 0);
+  vec3 worldCoord = (cameraForward * nearPlane) + (cameraUp * screenCoord.y) + (cameraRight * screenCoord.x);
+
+  vec3 direction = -normalize((vec4(worldCoord, 0) * cameraRotation).xyz);
+  Illumination lightning;
+
+  while(d <= farPlane){
+
+    if(color.x != -1){
+      break;
+    }
+
+    vec3 pos = cameraPosition + (direction * d);
+    float lowestDist = farPlane * 100;
+    for(int i = 0; i < sphereCount; i++){
+      Sphere sphere = spheres[i];
+      lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
+      if(lowestDist < collisionRange){
+        lightning = PathtracePoint(pos, sphere);
+        color = mix(mix(sphere.color * lightning.strength, lightning.color, lightning.strength - 1), fogColor, d / farPlane);
+        break;
+      }
+    }
+    d += lowestDist;
+  }
+
+  if(color.x == -1){
+    color = bgColor;
+  }
+
+  imageStore(ImgResult, imgCoord, vec4(color, 1.0));
+}
