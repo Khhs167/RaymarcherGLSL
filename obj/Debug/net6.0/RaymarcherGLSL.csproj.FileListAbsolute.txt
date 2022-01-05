@@ -27,4 +27,4 @@
 /home/khhs/Documents/RaymarcherGLSL/bin/Debug/net6.0/runtimes/win-x64/native/glfw3.dll
 /home/khhs/Documents/RaymarcherGLSL/bin/Debug/net6.0/runtimes/win-x86/native/glfw3.dll
 /home/khhs/Documents/RaymarcherGLSL/obj/Debug/net6.0/RaymarcherGLSL.csproj.CopyComplete
-/home/khhs/Documents/RaymarcherGLSL/bin/Debug/net6.0/raymarcher.glsl
+/home/khhs/Documents/RaymarcherGLSL/bin/Debug/net6.0/raymarcher.comp

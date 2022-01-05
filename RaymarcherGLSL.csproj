@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="raymarcher.glsl" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="raymarcher.comp" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

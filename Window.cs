@@ -30,7 +30,7 @@ namespace Raymarcher{
             //GL.Enable(EnableCap.DebugOutput);
             GL.DebugMessageCallback(MessageCallback, IntPtr.Zero);
 
-            raymarcherCompute = new Shader("cs_raymarcher", File.ReadAllText("raymarcher.glsl"), ShaderType.ComputeShader);
+            raymarcherCompute = new Shader("cs_raymarcher", File.ReadAllText("raymarcher.comp"), ShaderType.ComputeShader);
             raymarcherProgram = new ShaderProgram("p_raymarcher", raymarcherCompute);
 
             finalProgram = new ShaderProgram("p_final", new Shader("vs_final", textureRenderVertex, ShaderType.VertexShader), new Shader("fs_final", textureRenderFrag, ShaderType.FragmentShader));
@@ -38,6 +38,7 @@ namespace Raymarcher{
             GL.CreateTextures(TextureTarget.Texture2D, 1, out computeTexture);
             GL.TextureParameter(computeTexture, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             GL.TextureParameter(computeTexture, TextureParameterName.TextureMagFilter, (int)TextureMinFilter.Nearest);
+            GL.TextureParameter(computeTexture, TextureParameterName.ClampToEdge, 1);
             GL.BindTexture(TextureTarget.Texture2D, computeTexture);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, RENDER_WIDTH, RENDER_HEIGHT, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
             GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
@@ -48,6 +49,7 @@ namespace Raymarcher{
             cameraPositionUniform = raymarcherProgram.GetUniform("cameraPosition");
             cameraRotationUniform = raymarcherProgram.GetUniform("cameraRotation");
             cameraMatrixUniform = raymarcherProgram.GetUniform("cameraMatrix");
+            frameUniform = raymarcherProgram.GetUniform("iFrame");
 
             base.OnLoad();
         }
@@ -85,6 +87,9 @@ namespace Raymarcher{
 
         float timeSinceFPSUpdate = 1f;
 
+        int frameUniform = -1;
+        int frames = 0;
+
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
 
@@ -100,6 +105,12 @@ namespace Raymarcher{
             if(IsKeyDown(Keys.A)){
                 cameraPosition -= (float)args.Time * Vector3.Transform(Vector3.UnitX, Quaternion.FromEulerAngles(cameraRotation));
             }
+            if(IsKeyDown(Keys.LeftControl)){
+                cameraPosition.Y += (float)args.Time;
+            }
+            if(IsKeyDown(Keys.Space)){
+                cameraPosition.Y -= (float)args.Time;
+            }
             if(IsKeyDown(Keys.Right)){
                 cameraRotation.Y += (float)args.Time;
             }
@@ -112,6 +123,7 @@ namespace Raymarcher{
 
         protected override void OnRenderFrame(FrameEventArgs args)
         {
+            frames++;
             if(timeSinceFPSUpdate >= 1f){
                 Title = $"Jimmys raymarcher 2.0 - {MathF.Round(1f / (float)args.Time, 1)} FPS";
                 timeSinceFPSUpdate = 0f;
@@ -126,6 +138,7 @@ namespace Raymarcher{
             GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
             GL.Uniform3(cameraPositionUniform, cameraPosition);
             GL.UniformMatrix4(cameraRotationUniform, true, ref cameraRotationMatrix);
+            GL.Uniform1(frameUniform, frames);
             GL.DispatchCompute(RENDER_WIDTH, RENDER_HEIGHT, 1);
             //checkGLError();
             GL.Finish();
