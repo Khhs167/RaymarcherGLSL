@@ -9,11 +9,11 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 // GL.BindImageTexture
 layout(binding = 0, rgba32f) restrict uniform image2D ImgResult;
 
-const float nearPlane = 0.1;
+const float nearPlane = 0.5;
 const float farPlane = 1000;
 const float collisionRange = 0.1;
 uniform vec3 cameraPosition = vec3(0, 0, 0);
-uniform float cameraRotation = 0;
+uniform mat4 cameraRotation;
 
 struct Sphere{
   vec3 pos;
@@ -37,17 +37,18 @@ void main()
   vec2 uv = imgCoord / vec2(size); // range [0; 1]
   vec3 color = vec3(-1, -1, -1);
 
-  float ratio = size.y / size.x;
+  float ratio = float(size.y) / float(size.x);
   float d = 0;
   
   vec2 screenCoord = uv - vec2(0.5, 0.5);
+  screenCoord.x /= ratio;
 
-  vec3 cameraForward = vec3(sin(cameraRotation), 0, cos(cameraRotation));
-  vec3 cameraRight = vec3(cos(cameraRotation), 0, sin(cameraRotation));
+  vec3 cameraForward = vec3(0, 0, 1);
+  vec3 cameraRight = vec3(1, 0, 0);
   vec3 cameraUp = vec3(0, 1, 0);
-  vec3 worldCoord = (cameraForward * nearPlane) + (cameraUp * screenCoord.y) + (cameraRight * screenCoord.x) + cameraPosition;
+  vec3 worldCoord = (cameraForward * nearPlane) + (cameraUp * screenCoord.y) + (cameraRight * screenCoord.x);
 
-  vec3 direction = normalize(worldCoord - cameraPosition);
+  vec3 direction = -normalize((vec4(worldCoord, 0) * cameraRotation).xyz);
 
   while(d <= farPlane){
 
@@ -55,16 +56,15 @@ void main()
       break;
     }
 
-    vec3 pos = worldCoord + (direction * d);
+    vec3 pos = cameraPosition + (direction * d);
     float lowestDist = farPlane * 100;
-      for(int i = 0; i < sphereCount; i++){
-        Sphere sphere = spheres[i];
-        lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
-        if(lowestDist < collisionRange){
-          color = sphere.color;
-          break;
+    for(int i = 0; i < sphereCount; i++){
+      Sphere sphere = spheres[i];
+      lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
+      if(lowestDist < collisionRange){
+        color = sphere.color;
+        break;
       }
-      
     }
     d += lowestDist;
   }
@@ -72,8 +72,6 @@ void main()
   if(color.x == -1){
     color = vec3(0.2, 0.2, 1);
   }
-
-  color = direction;
 
   imageStore(ImgResult, imgCoord, vec4(color, 1.0));
 }

@@ -11,8 +11,8 @@ using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 namespace Raymarcher{
     public class Window : GameWindow
     {
-        public const int RENDER_WIDTH = 800;
-        public const int RENDER_HEIGHT = 600;
+        public const int RENDER_WIDTH = 1280;
+        public const int RENDER_HEIGHT = 720;
         public Window(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) : base(gameWindowSettings, nativeWindowSettings)
         {
         }
@@ -47,6 +47,7 @@ namespace Raymarcher{
             
             cameraPositionUniform = raymarcherProgram.GetUniform("cameraPosition");
             cameraRotationUniform = raymarcherProgram.GetUniform("cameraRotation");
+            cameraMatrixUniform = raymarcherProgram.GetUniform("cameraMatrix");
 
             base.OnLoad();
         }
@@ -78,30 +79,32 @@ namespace Raymarcher{
         Vector3 cameraPosition = Vector3.Zero;
         int cameraPositionUniform = -1;
 
-        float cameraRotation = 0;
+        Vector3 cameraRotation = Vector3.Zero;
         int cameraRotationUniform = -1;
+        int cameraMatrixUniform = -1;
+
+        float timeSinceFPSUpdate = 1f;
 
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
-            Title = $"Jimmys raymarcher 2.0 - {1f / (float)args.Time} FPS";
 
             if(IsKeyDown(Keys.W)){
-                cameraPosition += (float)args.Time * new Vector3(MathF.Sin(cameraRotation), 0, MathF.Cos(cameraRotation));
+                cameraPosition += (float)args.Time * Vector3.Transform(Vector3.UnitZ, Quaternion.FromEulerAngles(cameraRotation));
             }
             if(IsKeyDown(Keys.S)){
-                cameraPosition -= (float)args.Time * new Vector3(MathF.Sin(cameraRotation), 0, MathF.Cos(cameraRotation));
+                cameraPosition -= (float)args.Time * Vector3.Transform(Vector3.UnitZ, Quaternion.FromEulerAngles(cameraRotation));
             }
             if(IsKeyDown(Keys.D)){
-                cameraPosition += (float)args.Time * new Vector3(MathF.Cos(cameraRotation), 0, MathF.Sin(cameraRotation));
+                cameraPosition += (float)args.Time * Vector3.Transform(Vector3.UnitX, Quaternion.FromEulerAngles(cameraRotation));
             }
             if(IsKeyDown(Keys.A)){
-                cameraPosition -= (float)args.Time * new Vector3(MathF.Cos(cameraRotation), 0, MathF.Sin(cameraRotation));;
+                cameraPosition -= (float)args.Time * Vector3.Transform(Vector3.UnitX, Quaternion.FromEulerAngles(cameraRotation));
             }
             if(IsKeyDown(Keys.Right)){
-                cameraRotation += (float)args.Time;
+                cameraRotation.Y += (float)args.Time;
             }
             if(IsKeyDown(Keys.Left)){
-                cameraRotation -= (float)args.Time;
+                cameraRotation.Y -= (float)args.Time;
             }
 
             base.OnUpdateFrame(args);
@@ -109,12 +112,20 @@ namespace Raymarcher{
 
         protected override void OnRenderFrame(FrameEventArgs args)
         {
+            if(timeSinceFPSUpdate >= 1f){
+                Title = $"Jimmys raymarcher 2.0 - {MathF.Round(1f / (float)args.Time, 1)} FPS";
+                timeSinceFPSUpdate = 0f;
+            }
+            timeSinceFPSUpdate += (float)args.Time;
             GL.Clear(ClearBufferMask.ColorBufferBit);
             
+            Matrix4 cameraRotationMatrix = Matrix4.LookAt(cameraPosition, cameraPosition + Vector3.Transform(Vector3.UnitZ, Quaternion.FromEulerAngles(cameraRotation)), Vector3.UnitY);
+            cameraRotationMatrix.Transpose();
+
             raymarcherProgram.Use();
             GL.BindImageTexture(0, computeTexture, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba32f);
             GL.Uniform3(cameraPositionUniform, cameraPosition);
-            GL.Uniform1(cameraRotationUniform, cameraRotation);
+            GL.UniformMatrix4(cameraRotationUniform, true, ref cameraRotationMatrix);
             GL.DispatchCompute(RENDER_WIDTH, RENDER_HEIGHT, 1);
             //checkGLError();
             GL.Finish();
