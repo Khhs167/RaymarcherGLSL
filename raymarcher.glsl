@@ -10,10 +10,14 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 layout(binding = 0, rgba32f) restrict uniform image2D ImgResult;
 
 const float nearPlane = 0.5;
-const float farPlane = 1000;
+const float farPlane = 100;
 const float collisionRange = 0.1;
 uniform vec3 cameraPosition = vec3(0, 0, 0);
 uniform mat4 cameraRotation;
+
+const vec3 fogColor = vec3(0.3, 0.3, 1.0);
+const vec3 bgColor = vec3(0.2, 0.2, 1.0);
+
 
 struct Sphere{
   vec3 pos;
@@ -62,7 +66,7 @@ void main()
       Sphere sphere = spheres[i];
       lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
       if(lowestDist < collisionRange){
-        color = sphere.color;
+        color = mix(sphere.color, fogColor, d / farPlane);
         break;
       }
     }
@@ -70,7 +74,7 @@ void main()
   }
 
   if(color.x == -1){
-    color = vec3(0.2, 0.2, 1);
+    color = bgColor;
   }
 
   imageStore(ImgResult, imgCoord, vec4(color, 1.0));
