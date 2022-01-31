@@ -139,7 +139,7 @@ namespace Raymarcher{
             GL.Uniform3(cameraPositionUniform, cameraPosition);
             GL.UniformMatrix4(cameraRotationUniform, true, ref cameraRotationMatrix);
             GL.Uniform1(frameUniform, frames);
-            GL.DispatchCompute(RENDER_WIDTH, RENDER_HEIGHT, 1);
+            GL.DispatchCompute(RENDER_WIDTH / 8, RENDER_HEIGHT / 4, 1);
             //checkGLError();
             GL.Finish();
 

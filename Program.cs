@@ -11,6 +11,7 @@ namespace Raymarcher
             nws.API = ContextAPI.OpenGL;
             nws.APIVersion = new Version(4, 3);
             nws.Title = "Jimmys raymarcher 2.0";
+            nws.Size = new OpenTK.Mathematics.Vector2i(1600, 900);
             
             GameWindowSettings gws = new GameWindowSettings();
             gws.RenderFrequency = FRAMERATE_MAX;
