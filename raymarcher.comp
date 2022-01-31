@@ -14,10 +14,11 @@ const float nearPlane = 0.5;
 const float farPlane = 100;
 const float lightLength = 100;
 const float collisionRange = 0.1;
-const int samples = 1;
-const float progression = 0.05;
-const float splitting = 0.1;
 
+const int samples = 1;
+const float progression = 0.1;
+const float splitting = 0.1;
+uniform bool fastRender;
 const float shadowOffset = 0.0000000001;
 
 uniform vec3 cameraPosition = vec3(0, 0, 0);
@@ -70,6 +71,8 @@ uint wang_hash(inout uint seed)
     seed = seed ^ (seed >> 15);
     return seed;
 }
+
+
  
 float RandomFloat01(inout uint state)
 {
@@ -86,6 +89,15 @@ vec3 RandomUnitVector(inout uint state)
     return vec3(x, y, z);
 }
 
+float distSquared( vec3 A, vec3 B )
+{
+
+  vec3 C = A - B;
+  
+  return pow(C.x, 2) + pow(C.y, 2) + pow(C.z, 2);
+
+}
+
 RayResult IntersectRay(vec3 position, vec3 direction, float maxdist){
   float d = 0;
   while(d <= maxdist){
@@ -93,8 +105,8 @@ RayResult IntersectRay(vec3 position, vec3 direction, float maxdist){
     float lowestDist = maxdist * 100;
     for(int i = 0; i < sphereCount; i++){
       Sphere sphere = spheres[i];
-      lowestDist = min(lowestDist, distance(pos, sphere.pos) - sphere.size);
-      if(lowestDist < collisionRange){
+      lowestDist = min(lowestDist, distSquared(pos, sphere.pos) - pow(sphere.size, 2));
+      if(lowestDist < pow(collisionRange, 2)){
         return RayResult(true, sphere, pos);
       }
     }
@@ -145,7 +157,7 @@ void main()
   ivec2 imgCoord = ivec2(gl_GlobalInvocationID.xy);
 
   rngState = uint(uint(imgCoord.x) * uint(1973) + uint(imgCoord.y) * uint(9277) + uint(iFrame) * uint(26699)) | uint(1);
-  if(RandomFloat01(rngState) < splitting)
+  if(RandomFloat01(rngState) > splitting)
     return;
   
   vec2 uv = imgCoord / vec2(size); // range [0; 1]
@@ -190,6 +202,6 @@ void main()
     color = bgColor;
   }
   vec4 col = imageLoad(ImgResult, imgCoord);
-  vec4 mixedCol = mix(col, vec4(color, 1.0), progression);
+  vec4 mixedCol = mix(col, vec4(color, 1.0), fastRender ? 1 : progression);
   imageStore(ImgResult, imgCoord, mixedCol);
 }

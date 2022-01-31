@@ -24,6 +24,7 @@ namespace Raymarcher{
 
         int computeTexture;
         int emptyVAO;
+        int fastRenderUniform;
 
         protected override void OnLoad()
         {
@@ -50,6 +51,7 @@ namespace Raymarcher{
             cameraRotationUniform = raymarcherProgram.GetUniform("cameraRotation");
             cameraMatrixUniform = raymarcherProgram.GetUniform("cameraMatrix");
             frameUniform = raymarcherProgram.GetUniform("iFrame");
+            fastRenderUniform = raymarcherProgram.GetUniform("fastRender");
 
             base.OnLoad();
         }
@@ -117,6 +119,9 @@ namespace Raymarcher{
             if(IsKeyDown(Keys.Left)){
                 cameraRotation.Y -= (float)args.Time;
             }
+            if(IsKeyDown(Keys.X)){
+                GL.ClearTexImage(computeTexture, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            }
 
             base.OnUpdateFrame(args);
         }
@@ -139,6 +144,7 @@ namespace Raymarcher{
             GL.Uniform3(cameraPositionUniform, cameraPosition);
             GL.UniformMatrix4(cameraRotationUniform, true, ref cameraRotationMatrix);
             GL.Uniform1(frameUniform, frames);
+            GL.Uniform1(fastRenderUniform, IsKeyDown(Keys.Z) ? 1 : 0);
             GL.DispatchCompute(RENDER_WIDTH / 8, RENDER_HEIGHT / 4, 1);
             //checkGLError();
             GL.Finish();
