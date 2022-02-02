@@ -11,8 +11,8 @@ using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 namespace Raymarcher{
     public class Window : GameWindow
     {
-        public const int RENDER_WIDTH = 1280;
-        public const int RENDER_HEIGHT = 720;
+        public const int RENDER_WIDTH = 256;
+        public const int RENDER_HEIGHT = 240;
         public Window(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) : base(gameWindowSettings, nativeWindowSettings)
         {
         }
